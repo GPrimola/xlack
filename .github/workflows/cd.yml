@@ -25,6 +25,8 @@ jobs:
           _build/prod/lib
           deps
           doc
+          lib
+          priv
           mix.exs
         key: ${{ runner.os }}-mix-prod-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
         restore-keys: |
@@ -67,6 +69,8 @@ jobs:
           _build/prod/lib
           deps
           doc
+          lib
+          priv
           mix.exs
         key: ${{ runner.os }}-mix-prod-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
         restore-keys: |
@@ -94,6 +98,8 @@ jobs:
           _build/prod/lib
           deps
           doc
+          lib
+          priv
           mix.exs
         key: ${{ runner.os }}-mix-prod-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
         restore-keys: |
