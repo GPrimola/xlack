@@ -1,0 +1,192 @@
+defmodule Xlack.Bot do
+  require Logger
+
+  @behaviour :websocket_client
+
+  @moduledoc """
+  This module is used to spawn bots and is used to manage the connection to Xlack
+  while delegating events to the specified bot module.
+  """
+
+  @doc """
+  Connects to Xlack and delegates events to `bot_handler`.
+
+  ## Options
+
+  * `keepalive` - How long to wait for the connection to respond before the client kills the connection.
+  * `name` - registers a name for the process with the given atom
+
+  ## Example
+
+  {:ok, pid} = Xlack.Bot.start_link(MyBot, [1,2,3], "abc-123", %{name: :xlack_bot})
+
+  :sys.get_state(:xlack_bot)
+
+  """
+  def start_link(bot_handler, initial_state, token, options \\ %{}) do
+    options =
+      Map.merge(
+        %{
+          client: :websocket_client,
+          keepalive: 10_000,
+          name: nil
+        },
+        Map.new(options)
+      )
+
+    rtm_module = Application.get_env(:xlack, :rtm_module, Xlack.Rtm)
+
+    case rtm_module.start(token) do
+      {:ok, rtm} ->
+        state = %{
+          bot_handler: bot_handler,
+          rtm: rtm,
+          client: options.client,
+          token: token,
+          initial_state: initial_state
+        }
+
+        url = String.to_charlist(state.rtm.url)
+
+        {:ok, pid} =
+          options.client.start_link(url, __MODULE__, state, keepalive: options.keepalive)
+
+        if options.name != nil do
+          Process.register(pid, options.name)
+        end
+
+        {:ok, pid}
+
+      {:error, %HTTPoison.Error{reason: :connect_timeout}} ->
+        {:error, "Timed out while connecting to the Xlack RTM API"}
+
+      {:error, %HTTPoison.Error{reason: :nxdomain}} ->
+        {:error, "Could not connect to the Xlack RTM API"}
+
+      {:error, %Xlack.JsonDecodeError{string: "You are sending too many requests. Please relax."}} ->
+        {:error, "Sent too many connection requests at once to the Xlack RTM API."}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  @doc false
+  @deprecated """
+  `rtm.start` is replaced with `rtm.connect` and will no longer receive bots, channels, groups, users, or IMs.
+  In future versions these will no longer be provided on initialization.
+  """
+  def init(%{
+        bot_handler: bot_handler,
+        rtm: rtm,
+        client: client,
+        token: token,
+        initial_state: initial_state
+      }) do
+    slack = %Xlack.State{
+      process: self(),
+      client: client,
+      token: token,
+      me: rtm.self,
+      team: rtm.team
+    }
+
+    {:reconnect, %{slack: slack, bot_handler: bot_handler, process_state: initial_state}}
+  end
+
+  @doc false
+  def onconnect(
+        _websocket_request,
+        %{slack: slack, process_state: process_state, bot_handler: bot_handler} = state
+      ) do
+    {:ok, new_process_state} = bot_handler.handle_connect(slack, process_state)
+    {:ok, %{state | process_state: new_process_state}}
+  end
+
+  @doc false
+  def ondisconnect({:error, :keepalive_timeout}, state) do
+    {:reconnect, state}
+  end
+
+  def ondisconnect(
+        reason,
+        %{slack: slack, process_state: process_state, bot_handler: bot_handler} = state
+      ) do
+    try do
+      bot_handler.handle_close(reason, slack, process_state)
+      {:close, reason, state}
+    rescue
+      e ->
+        Logger.error(__STACKTRACE__)
+        handle_exception(e)
+        {:close, reason, state}
+    end
+  end
+
+  @doc false
+  def websocket_info(
+        message,
+        _connection,
+        %{slack: slack, process_state: process_state, bot_handler: bot_handler} = state
+      ) do
+    try do
+      {:ok, new_process_state} = bot_handler.handle_info(message, slack, process_state)
+      {:ok, %{state | process_state: new_process_state}}
+    rescue
+      e ->
+        Logger.error(__STACKTRACE__)
+        handle_exception(e)
+        {:ok, state}
+    end
+  end
+
+  @doc false
+  def websocket_terminate(_reason, _conn, _state), do: :ok
+
+  @doc false
+  def websocket_handle(
+        {:text, message},
+        _conn,
+        %{slack: slack, process_state: process_state, bot_handler: bot_handler} = state
+      ) do
+    message = prepare_message(message)
+
+    updated_slack =
+      if Map.has_key?(message, :type) do
+        Xlack.State.update(message, slack)
+      else
+        slack
+      end
+
+    new_process_state =
+      if Map.has_key?(message, :type) do
+        try do
+          {:ok, new_process_state} = bot_handler.handle_event(message, slack, process_state)
+          new_process_state
+        rescue
+          e ->
+            Logger.error(__STACKTRACE__)
+            handle_exception(e)
+        end
+      else
+        process_state
+      end
+
+    {:ok, %{state | slack: updated_slack, process_state: new_process_state}}
+  end
+
+  def websocket_handle(_, _conn, state), do: {:ok, state}
+
+  defp prepare_message(binstring) do
+    binstring
+    |> :binary.split(<<0>>)
+    |> List.first()
+    |> Jason.decode!(keys: :atoms)
+  end
+
+  defp handle_exception(e) do
+    message = Exception.message(e)
+    Logger.error(message)
+    raise message
+  end
+end
