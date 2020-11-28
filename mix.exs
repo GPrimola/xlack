@@ -64,7 +64,8 @@ defmodule Xlack.MixProject do
       description: @description,
       licenses: @licenses,
       links: %{"GitHub" => @source_url},
-      files: ~w(lib priv .formatter.exs mix.exs README* LICENSE*)
+      files: ~w(lib priv .formatter.exs mix.exs README.md LICENSE version),
+      maintainers: ["GPrimola"]
     ]
   end
 end
