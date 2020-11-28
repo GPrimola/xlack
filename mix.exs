@@ -16,7 +16,7 @@ defmodule Xlack.MixProject do
       deps: deps(),
       docs: docs(),
       package: package(),
-      source_url: @source_url,
+      source_url: @source_url
     ]
   end
 
