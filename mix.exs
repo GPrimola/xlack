@@ -1,7 +1,7 @@
 defmodule Xlack.MixProject do
   use Mix.Project
 
-  @version "1.0.6"
+  @version "0.1.0"
   @source_url "https://github.com/GPrimola/xlack"
   @logo_path "priv/img/xlack-logo.png"
   @licenses ["Apache-2.0"]
