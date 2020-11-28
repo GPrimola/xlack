@@ -5,11 +5,15 @@ defmodule Xlack.MixProject do
   @source_url "https://github.com/GPrimola/xlack"
   @logo_path "priv/img/xlack-logo.png"
   @licenses ["Apache-2.0"]
+  @description """
+  This is a Slack API client for Elixir applications.
+  """
 
   def project do
     [
       app: :xlack,
       version: "0.1.0",
+      description: @description,
       elixir: "~> 1.10",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -57,11 +61,10 @@ defmodule Xlack.MixProject do
   defp package do
     [
       name: "xlack",
-      description: """
-      This is a Slack API client for Elixir applications.
-      """,
+      description: @description,
       licenses: @licenses,
-      links: %{"GitHub" => @source_url}
+      links: %{"GitHub" => @source_url},
+      files: ~w(lib priv .formatter.exs mix.exs README* LICENSE*)
     ]
   end
 end
