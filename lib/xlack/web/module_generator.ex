@@ -70,7 +70,10 @@ Xlack.Web.get_documentation()
             {:ok, User.new(slack_user)}
 
           %{"users" => slack_users} ->
-            {:ok, Enum.map(slack_users, &Message.new/1)}
+            {:ok, Enum.map(slack_users, &User.new/1)}
+
+          %{"members" => slack_users} ->
+            {:ok, Enum.map(slack_users, &User.new/1)}
 
           response ->
             response

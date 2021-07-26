@@ -38,7 +38,7 @@ defmodule Xlack.State do
   @doc """
   Pattern matches against messages and returns updated Xlack state.
   """
-  @spec update(Map, Map) :: {Symbol, Map}
+  @spec update(map(), map()) :: {atom(), map()}
   def update(%{type: "channel_created", channel: channel}, slack) do
     put_in(slack, [:channels, channel.id], channel)
   end
